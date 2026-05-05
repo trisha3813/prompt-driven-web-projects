@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIC-TAC-TOE | NEXUS 3D</title>
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-magenta: #ff00ff;
+            --glass: rgba(15, 23, 42, 0.8);
+            --border: rgba(0, 243, 255, 0.3);
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        /* Cinematic Overlay */
+        body::before {
+            content: "";
+            position: absolute;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* --- Header --- */
+        header {
+            padding: 30px;
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            z-index: 10;
+        }
+
+        .title {
+            font-size: 3rem;
+            letter-spacing: 15px;
+            margin: 0;
+            background: linear-gradient(to right, var(--neon-cyan), #fff, var(--neon-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0, 243, 255, 0.5);
+        }
+
+        /* --- Main Arena --- */
+        .arena {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            padding: 20px;
+            align-items: center;
+            perspective: 2000px;
+        }
+
+        .side-panel {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 25px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .status-pill {
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.4);
+            margin-bottom: 20px;
+            border-left: 4px solid var(--neon-cyan);
+        }
+
+        .player-label { font-size: 0.7rem; color: var(--neon-cyan); letter-spacing: 2px; }
+        .player-name { font-size: 1.4rem; display: block; margin-top: 5px; }
+
+        /* --- The 3D Cube --- */
+        .scene {
+            height: 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+        }
+
+        .cube {
+            width: 300px;
+            height: 300px;
+            transform-style: preserve-3d;
+            position: relative;
+            transition: transform 0.1s ease-out;
+        }
+
+        .grid-3d {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            transform-style: preserve-3d;
+        }
+
+        .cell {
+            width: 90px;
+            height: 90px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d;
+            position: relative;
+        }
+
+        .cell:hover {
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 30px var(--neon-cyan);
+            transform: translateZ(20px);
+        }
+
+        .cell.x { color: var(--neon-cyan); text-shadow: 0 0 20px var(--neon-cyan); }
+        .cell.o { color: var(--neon-magenta); text-shadow: 0 0 20px var(--neon-magenta); }
+
+        .cell.x::after { content: "✦"; }
+        .cell.o::after { content: "❍"; }
+
+        /* --- Controls --- */
+        .btn {
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 12px 20px;
+            font-family: 'Orbitron';
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+            transition: 0.3s;
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+        }
+
+        .btn:hover {
+            background: var(--neon-cyan);
+            color: black;
+            box-shadow: 0 0 20px var(--neon-cyan);
+        }
+
+        .btn.active {
+            background: rgba(0, 243, 255, 0.2);
+            border-width: 2px;
+        }
+
+        .win-overlay {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            z-index: 1000;
+            display: none;
+            text-shadow: 0 0 50px white;
+        }
+
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header>
+    <h1 class="title">NEXUS TIC-TAC-TOE</h1>
+</header>
+
+<div class="arena">
+    <!-- Left Panel -->
+    <div class="side-panel">
+        <div class="status-pill" id="p1-pill">
+            <span class="player-label">REPLICANT_01</span>
+            <span class="player-name">PLAYER 1 (X)</span>
+        </div>
+        <div class="status-pill" id="p2-pill" style="border-color: var(--neon-magenta); opacity: 0.4;">
+            <span class="player-label" style="color: var(--neon-magenta);">REPLICANT_02</span>
+            <span class="player-name">PLAYER 2 (O)</span>
+        </div>
+        <div style="margin-top: 40px;">
+            <p style="font-size: 0.7rem; color: #64748b; line-height: 1.6;">
+                SYSTEM_LOG: Navigate the 3D Nexus. Capture 3 nodes in sequence to disrupt the grid.
+            </p>
+        </div>
+    </div>
+
+    <!-- Center Arena -->
+    <div class="scene" id="dragArea">
+        <div class="cube" id="nexusCube">
+            <div class="grid-3d" id="grid">
+                <!-- Cells generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="side-panel">
+        <div class="panel-title" style="color: var(--neon-cyan); margin-bottom: 20px; font-size: 0.8rem;">MODE_SELECTION</div>
+        <button class="btn active" id="pvpBtn" onclick="setMode('pvp')">User vs User</button>
+        <button class="btn" id="pvcBtn" onclick="setMode('pvc')">User vs AI</button>
+        
+        <div style="margin-top: 30px;">
+            <button class="btn" style="border-color: #ef4444; color: #ef4444;" onclick="resetGame()">System Reset</button>
+        </div>
+        
+        <div id="ai-status" style="margin-top: 20px; display: none;">
+            <span class="player-label">AI_THINKING...</span>
+            <div style="width: 100%; height: 2px; background: #1e293b; margin-top: 10px;">
+                <div id="ai-bar" style="width: 0%; height: 100%; background: var(--neon-cyan); transition: 0.5s;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="win-overlay" id="winMsg">VICTORY</div>
+
+<script>
+    let board = Array(9).fill(null);
+    let currentPlayer = 'x';
+    let gameActive = true;
+    let gameMode = 'pvp'; // pvp or pvc
+
+    const gridEl = document.getElementById('grid');
+    const nexusCube = document.getElementById('nexusCube');
+    const p1Pill = document.getElementById('p1-pill');
+    const p2Pill = document.getElementById('p2-pill');
+
+    // Create 3D Grid
+    function initGrid() {
+        gridEl.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.index = i;
+            cell.onclick = () => handleMove(i);
+            gridEl.appendChild(cell);
+        }
+    }
+
+    function handleMove(i) {
+        if (!gameActive || board[i]) return;
+
+        makeMove(i, currentPlayer);
+
+        if (checkWin()) {
+            endGame(currentPlayer === 'x' ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS');
+            return;
+        }
+
+        if (board.every(cell => cell)) {
+            endGame('DRAW DETECTED');
+            return;
+        }
+
+        currentPlayer = currentPlayer === 'x' ? 'o' : 'x';
+        updateUI();
+
+        if (gameMode === 'pvc' && currentPlayer === 'o') {
+            aiMove();
+        }
+    }
+
+    function makeMove(i, player) {
+        board[i] = player;
+        const cells = document.querySelectorAll('.cell');
+        cells[i].classList.add(player);
+        // Sound-like haptic visual
+        cells[i].style.transform = "translateZ(40px)";
+        setTimeout(() => cells[i].style.transform = "translateZ(0px)", 200);
+    }
+
+    function updateUI() {
+        p1Pill.style.opacity = currentPlayer === 'x' ? '1' : '0.4';
+        p2Pill.style.opacity = currentPlayer === 'o' ? '1' : '0.4';
+    }
+
+    async function aiMove() {
+        gameActive = false;
+        document.getElementById('ai-status').style.display = 'block';
+        document.getElementById('ai-bar').style.width = '100%';
+
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Basic AI Logic (Random for now, can be Minimax)
+        let available = board.map((v, i) => v === null ? i : null).filter(v => v !== null);
+        let move = available[Math.floor(Math.random() * available.length)];
+        
+        document.getElementById('ai-bar').style.width = '0%';
+        document.getElementById('ai-status').style.display = 'none';
+        
+        gameActive = true;
+        handleMove(move);
+    }
+
+    function checkWin() {
+        const wins = [[0,1,2], [3,4,5], [6,7,8], [0,3,6], [1,4,7], [2,5,8], [0,4,8], [2,4,6]];
+        return wins.some(combo => {
+            return combo.every(idx => board[idx] === currentPlayer);
+        });
+    }
+
+    function endGame(msg) {
+        gameActive = false;
+        const winMsg = document.getElementById('winMsg');
+        winMsg.innerText = msg;
+        winMsg.style.display = 'block';
+        winMsg.style.color = currentPlayer === 'x' ? 'var(--neon-cyan)' : 'var(--neon-magenta)';
+    }
+
+    function setMode(mode) {
+        gameMode = mode;
+        document.getElementById('pvpBtn').classList.toggle('active', mode === 'pvp');
+        document.getElementById('pvcBtn').classList.toggle('active', mode === 'pvc');
+        resetGame();
+    }
+
+    function resetGame() {
+        board = Array(9).fill(null);
+        currentPlayer = 'x';
+        gameActive = true;
+        document.getElementById('winMsg').style.display = 'none';
+        initGrid();
+        updateUI();
+    }
+
+    /* --- Cinematic Rotation Logic --- */
+    let tX = 10, tY = -20, cX = 10, cY = -20, isDrag = false, lx, ly;
+
+    window.addEventListener('mousedown', e => { isDrag = true; lx = e.clientX; ly = e.clientY; });
+    window.addEventListener('mouseup', () => isDrag = false);
+    window.addEventListener('mousemove', e => {
+        if(!isDrag) return;
+        tY += (e.clientX - lx) * 0.5;
+        tX -= (e.clientY - ly) * 0.5;
+        lx = e.clientX; ly = e.clientY;
+    });
+
+    function animate() {
+        cX += (tX - cX) * 0.1;
+        cY += (tY - cY) * 0.1;
+        nexusCube.style.transform = `rotateX(${cX}deg) rotateY(${cY}deg)`;
+        requestAnimationFrame(animate);
+    }
+
+    initGrid();
+    animate();
+
+</script>
+</body>
+</html>

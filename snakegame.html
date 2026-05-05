@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Retro Nokia Snake</title>
+    <style>
+        :root {
+            --nokia-green: #91b029;
+            --nokia-dark: #2b3511;
+            --nokia-screen: #a4c435;
+        }
+
+        body {
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .phone-container {
+            background: #333;
+            padding: 40px 20px;
+            border-radius: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 -5px 15px rgba(0,0,0,0.4);
+            border: 4px solid #444;
+            position: relative;
+        }
+
+        .screen-bezel {
+            background: #111;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #222;
+        }
+
+        .lcd {
+            background: var(--nokia-screen);
+            width: 400px;
+            height: 400px;
+            position: relative;
+            border: 4px solid var(--nokia-dark);
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.1);
+            image-rendering: pixelated;
+        }
+
+        /* Scanline effect */
+        .lcd::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(43, 53, 17, 0.05) 50%, transparent 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            color: var(--nokia-dark);
+            font-weight: bold;
+            padding: 5px 10px;
+            border-bottom: 2px solid var(--nokia-dark);
+            font-size: 18px;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--nokia-dark);
+            display: none;
+        }
+
+        h1 { margin: 0; font-size: 32px; letter-spacing: -2px; }
+        p { font-size: 14px; font-weight: bold; text-transform: uppercase; }
+
+        .keypad {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            justify-items: center;
+        }
+
+        .btn {
+            width: 50px;
+            height: 35px;
+            background: #444;
+            border-radius: 50%;
+            box-shadow: 0 4px #222;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-container">
+    <div class="screen-bezel">
+        <div class="lcd">
+            <div class="stats">
+                <div id="score">0000</div>
+                <div>HI: <span id="highscore">0000</span></div>
+            </div>
+            <canvas id="snakeGame"></canvas>
+            <div class="overlay" id="overlay">
+                <h1>GAME OVER</h1>
+                <p>Press Space to Restart</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="keypad">
+        <div class="btn"></div><div class="btn"></div><div class="btn"></div>
+        <div class="btn"></div><div class="btn"></div><div class="btn"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("snakeGame");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const highscoreEl = document.getElementById("highscore");
+    const overlay = document.getElementById("overlay");
+
+    // Retro Grid Settings
+    const gridSize = 20;
+    const tileCount = 20; 
+    canvas.width = canvas.height = 400;
+
+    let score = 0;
+    let highscore = localStorage.getItem("nokiaHighscore") || 0;
+    highscoreEl.innerText = highscore.toString().padStart(4, '0');
+
+    let snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
+    let food = {x: 5, y: 5};
+    let dx = 0;
+    let dy = -1;
+    let gameRunning = true;
+
+    // Movement logic
+    document.addEventListener("keydown", changeDirection);
+
+    function changeDirection(event) {
+        if (!gameRunning && event.code === "Space") restart();
+        
+        const KEY_UP = "ArrowUp";
+        const KEY_DOWN = "ArrowDown";
+        const KEY_LEFT = "ArrowLeft";
+        const KEY_RIGHT = "ArrowRight";
+
+        const keyPressed = event.key;
+        const goingUp = dy === -1;
+        const goingDown = dy === 1;
+        const goingRight = dx === 1;
+        const goingLeft = dx === -1;
+
+        if (keyPressed === KEY_LEFT && !goingRight) { dx = -1; dy = 0; }
+        if (keyPressed === KEY_UP && !goingDown) { dx = 0; dy = -1; }
+        if (keyPressed === KEY_RIGHT && !goingLeft) { dx = 1; dy = 0; }
+        if (keyPressed === KEY_DOWN && !goingUp) { dx = 0; dy = 1; }
+    }
+
+    function draw() {
+        if (!gameRunning) return;
+
+        // LCD Persistence (Ghosting effect)
+        // Instead of clearing, we paint a faint layer of the background color
+        ctx.fillStyle = "rgba(164, 196, 53, 0.4)"; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        moveSnake();
+        checkCollision();
+        
+        drawFood();
+        drawSnake();
+
+        setTimeout(draw, 100); // Classic Nokia speed
+    }
+
+    function moveSnake() {
+        const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+        snake.unshift(head);
+
+        if (head.x === food.x && head.y === food.y) {
+            score += 10;
+            scoreEl.innerText = score.toString().padStart(4, '0');
+            generateFood();
+        } else {
+            snake.pop();
+        }
+    }
+
+    function checkCollision() {
+        const head = snake[0];
+        // Wall collision
+        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            gameOver();
+        }
+        // Self collision
+        for (let i = 1; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) gameOver();
+        }
+    }
+
+    function drawSnake() {
+        ctx.fillStyle = "#2b3511";
+        snake.forEach((part, index) => {
+            // Draw slightly smaller than the grid to create "gaps" between segments
+            ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            
+            // Snake eyes
+            if(index === 0) {
+                ctx.fillStyle = "#a4c435";
+                ctx.fillRect(part.x * gridSize + 4, part.y * gridSize + 4, 3, 3);
+                ctx.fillRect(part.x * gridSize + 12, part.y * gridSize + 4, 3, 3);
+                ctx.fillStyle = "#2b3511";
+            }
+        });
+    }
+
+    function drawFood() {
+        // Draw food as a hollow square for that retro look
+        ctx.strokeStyle = "#2b3511";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(food.x * gridSize + 4, food.y * gridSize + 4, gridSize - 8, gridSize - 8);
+        ctx.fillRect(food.x * gridSize + 8, food.y * gridSize + 8, 4, 4);
+    }
+
+    function generateFood() {
+        food.x = Math.floor(Math.random() * tileCount);
+        food.y = Math.floor(Math.random() * tileCount);
+    }
+
+    function gameOver() {
+        gameRunning = false;
+        overlay.style.display = "block";
+        if (score > highscore) {
+            highscore = score;
+            localStorage.setItem("nokiaHighscore", highscore);
+            highscoreEl.innerText = highscore.toString().padStart(4, '0');
+        }
+    }
+
+    function restart() {
+        score = 0;
+        scoreEl.innerText = "0000";
+        snake = [{x: 10, y: 10}, {x: 10, y: 11}, {x: 10, y: 12}];
+        dx = 0;
+        dy = -1;
+        gameRunning = true;
+        overlay.style.display = "none";
+        generateFood();
+        draw();
+    }
+
+    // Initialize
+    generateFood();
+    draw();
+</script>
+</body>
+</html>

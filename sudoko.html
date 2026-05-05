@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SUDOKU</title>
+    <style>
+        :root {
+            --neon: #38bdf8;
+            --error: #ff4757;
+            --glass: rgba(15, 23, 42, 0.9);
+            --border: rgba(56, 189, 248, 0.2);
+            --bg: #020617;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        .top-nav {
+            padding: 20px 40px;
+            background: var(--glass);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .main-heading {
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: 12px;
+            margin: 0;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px var(--neon);
+        }
+
+        .main-viewport {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+            align-items: center;
+        }
+
+        .side-panel {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 20px;
+            height: 80%;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+
+        .panel-title {
+            color: var(--neon);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 5px;
+        }
+
+        .guide-step {
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            display: flex;
+            gap: 10px;
+        }
+        .step-num { color: var(--neon); font-weight: bold; }
+
+        .canvas {
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1200px;
+            cursor: grab;
+        }
+
+        .board {
+            width: 450px;
+            height: 450px;
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 8px;
+            transform-style: preserve-3d;
+            pointer-events: none;
+        }
+
+        .cell-3d {
+            position: relative;
+            transform-style: preserve-3d;
+            pointer-events: auto;
+        }
+
+        .face {
+            position: absolute; width: 100%; height: 100%;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--border);
+            display: flex; justify-content: center; align-items: center;
+            border-radius: 4px;
+            font-size: 20px; font-weight: bold;
+        }
+
+        .face-front { transform: translateZ(12px); }
+        .face-right { width: 24px; transform: rotateY(90deg) translateZ(32px); background: #0f172a; }
+        .face-bottom { height: 24px; transform: rotateX(-90deg) translateZ(32px); background: #0f172a; }
+
+        .selected .face-front { background: rgba(56, 189, 248, 0.4); border-color: var(--neon); box-shadow: 0 0 15px var(--neon); }
+        .error .face-front { color: var(--error); border-color: var(--error); }
+        .fixed .face-front { color: #64748b; background: rgba(15, 23, 42, 0.4); }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--neon);
+            color: var(--neon);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: 0.3s;
+        }
+        .btn:hover { background: var(--neon); color: black; }
+
+        .stat-box { text-align: center; margin-bottom: 20px; }
+        .stat-val { font-size: 1.5rem; font-weight: bold; display: block; }
+        
+        .block-sep { border-right: 3px solid var(--neon) !important; }
+        .row-sep { border-bottom: 3px solid var(--neon) !important; }
+    </style>
+</head>
+<body>
+
+<div class="top-nav">
+    <h1 class="main-heading">SUDOKU</h1>
+    <div style="display: flex; gap: 30px;">
+        <div class="stat-box"><span class="stat-val" id="timer">00:00</span><span>TIME</span></div>
+        <div class="stat-box"><span class="stat-val" id="mistakes">0 / 3</span><span>FAULTS</span></div>
+    </div>
+</div>
+
+<div class="main-viewport">
+    <div class="side-panel">
+        <div class="panel-title">Mission Guide</div>
+        <div class="guide-step">
+            <span class="step-num">01</span>
+            <span><b>Drag</b> anywhere in the center to rotate the board.</span>
+        </div>
+        <div class="guide-step">
+            <span class="step-num">02</span>
+            <span><b>Click</b> a grid cell to select it.</span>
+        </div>
+        <div class="guide-step">
+            <span class="step-num">03</span>
+            <span>Use <b>Keyboard (1-9)</b> to input your data.</span>
+        </div>
+        <div class="guide-step">
+            <span class="step-num">04</span>
+            <span>Use <b>Backspace</b> to wipe a cell clear.</span>
+        </div>
+        <div style="margin-top: auto;">
+            <div class="panel-title">Difficulty</div>
+            <button class="btn" style="width:100%" onclick="newGame('easy')">EASY</button>
+            <button class="btn" style="width:100%" onclick="newGame('medium')">MEDIUM</button>
+            <button class="btn" style="width:100%" onclick="newGame('hard')">HARD</button>
+        </div>
+    </div>
+
+    <div class="canvas" id="dragArea">
+        <div class="board" id="board"></div>
+    </div>
+
+    <div class="side-panel">
+        <div class="panel-title">Systems</div>
+        <button class="btn" onclick="giveHint()" style="border-color: #fbbf24; color: #fbbf24;">REQUEST HINT</button>
+        <button class="btn" onclick="resetCam()">RESET</button>
+        
+        <div style="margin-top: 30px;">
+            <div class="panel-title">Summary</div>
+            <p style="font-size: 0.8rem; opacity: 0.7; line-height: 1.6;">
+                Sudoku 3D is a spatial logic puzzle. Complete the grid so that every row, column, and 3x3 block contains digits 1-9.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+let boardEl = document.getElementById("board");
+let sol = [], currentIdx = null, faults = 0, time = 0;
+
+function createGrid() {
+    boardEl.innerHTML = "";
+    for(let i=0; i<81; i++) {
+        let cell = document.createElement("div");
+        cell.className = "cell-3d";
+        let r = Math.floor(i/9), c = i%9;
+        if((c+1)%3 === 0 && c<8) cell.classList.add("block-sep");
+        if((r+1)%3 === 0 && r<8) cell.classList.add("row-sep");
+
+        ['front', 'right', 'bottom'].forEach(side => {
+            let face = document.createElement("div");
+            face.className = `face face-${side}`;
+            cell.appendChild(face);
+        });
+
+        cell.onclick = (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.cell-3d').forEach(c => c.classList.remove('selected'));
+            cell.classList.add('selected');
+            currentIdx = i;
+        };
+        boardEl.appendChild(cell);
+    }
+}
+
+window.addEventListener('keydown', (e) => {
+    if(currentIdx === null) return;
+    const cells = document.querySelectorAll('.cell-3d');
+    if(cells[currentIdx].classList.contains('fixed')) return;
+
+    if(e.key >= 1 && e.key <= 9) {
+        cells[currentIdx].querySelector('.face-front').innerText = e.key;
+        validate(currentIdx, e.key);
+    } else if(e.key === "Backspace") {
+        cells[currentIdx].querySelector('.face-front').innerText = "";
+        cells[currentIdx].classList.remove('error');
+    }
+});
+
+function validate(idx, val) {
+    const cells = document.querySelectorAll('.cell-3d');
+    let r = Math.floor(idx/9), c = idx%9;
+    if(parseInt(val) !== sol[r][c]) {
+        cells[idx].classList.add('error');
+        faults++;
+        document.getElementById('mistakes').innerText = `${faults} / 3`;
+        if(faults >= 3) { alert("Game Over!"); newGame('easy'); }
+    } else {
+        cells[idx].classList.remove('error');
+    }
+}
+
+function newGame(lv) {
+    faults = 0; time = 0;
+    document.getElementById('mistakes').innerText = "0 / 3";
+    let grid = Array.from({length:9},()=>Array(9).fill(0));
+    
+    const fill = (g) => {
+        for(let r=0; r<9; r++) for(let c=0; c<9; c++) if(g[r][c]==0) {
+            let ns = [1,2,3,4,5,6,7,8,9].sort(()=>Math.random()-0.5);
+            for(let n of ns) {
+                let valid = true;
+                for(let x=0; x<9; x++) if(g[r][x]==n || g[x][c]==n) valid=false;
+                let rs=r-r%3, cs=c-c%3;
+                for(let i=0;i<3;i++) for(let j=0;j<3;j++) if(g[rs+i][cs+j]==n) valid=false;
+                if(valid){ g[r][c]=n; if(fill(g)) return true; g[r][c]=0; }
+            } return false;
+        } return true;
+    };
+    fill(grid);
+    sol = grid.map(r => [...r]);
+    let puzzle = grid.map(r => [...r]);
+    let h = lv === 'easy' ? 30 : lv === 'medium' ? 45 : 55;
+    while(h>0){
+        let r=Math.floor(Math.random()*9), c=Math.floor(Math.random()*9);
+        if(puzzle[r][c]!==0){ puzzle[r][c]=0; h--; }
+    }
+    const cells = document.querySelectorAll(".cell-3d");
+    puzzle.flat().forEach((v, i) => {
+        cells[i].querySelector('.face-front').innerText = v || "";
+        cells[i].classList.toggle("fixed", v !== 0);
+        cells[i].classList.remove("error", "selected");
+    });
+}
+
+function giveHint() {
+    if(currentIdx === null) return;
+    let r = Math.floor(currentIdx/9), c = currentIdx%9;
+    document.querySelectorAll('.cell-3d')[currentIdx].querySelector('.face-front').innerText = sol[r][c];
+    document.querySelectorAll('.cell-3d')[currentIdx].classList.remove('error');
+}
+
+let tx = 25, ty = -20, cx = 25, cy = -20, isDrag = false, lx, ly;
+const dragArea = document.getElementById("dragArea");
+
+dragArea.addEventListener('mousedown', e => { isDrag = true; lx = e.clientX; ly = e.clientY; });
+window.addEventListener('mouseup', () => isDrag = false);
+window.addEventListener('mousemove', e => {
+    if(!isDrag) return;
+    ty += (e.clientX - lx) * 0.4;
+    tx -= (e.clientY - ly) * 0.4;
+    lx = e.clientX; ly = e.clientY;
+});
+function resetCam() { tx = 25; ty = -20; }
+
+function animate() {
+    cx += (tx - cx) * 0.1; cy += (ty - cy) * 0.1;
+    boardEl.style.transform = `rotateX(${cx}deg) rotateY(${cy}deg)`;
+    requestAnimationFrame(animate);
+}
+
+setInterval(() => {
+    time++;
+    let m = Math.floor(time/60).toString().padStart(2,'0');
+    let s = (time%60).toString().padStart(2,'0');
+    document.getElementById("timer").innerText = `${m}:${s}`;
+}, 1000);
+
+createGrid();
+newGame('easy');
+animate();
+</script>
+</body>
+</html>

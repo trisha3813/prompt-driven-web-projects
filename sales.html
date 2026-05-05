@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Sales Dashboard | Interactive 3D</title>
+    <!-- Core Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root { --gold: #d4af37; --bg: #08080a; --panel-bg: rgba(18, 18, 22, 0.92); }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
+        
+        /* Layout Grid */
+        .dashboard { 
+            position: absolute; width: 100vw; height: 100vh; 
+            display: grid; grid-template-columns: 350px 1fr 350px; 
+            padding: 25px; box-sizing: border-box; z-index: 10; pointer-events: none; 
+        }
+        .panel { display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
+        .card { 
+            background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.06); 
+            padding: 20px; border-radius: 14px; backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        
+        /* KPI Styling */
+        h2 { font-size: 0.7rem; color: #777; text-transform: uppercase; letter-spacing: 1.8px; margin: 0 0 12px 0; }
+        .kpi-main { font-size: 2.4rem; font-weight: 800; color: #fff; line-height: 1; }
+        .kpi-sub { font-size: 0.85rem; color: #00ffaa; margin-top: 8px; }
+        
+        /* Progress Bar */
+        .progress-track { height: 6px; background: #222; border-radius: 3px; margin: 15px 0; }
+        .progress-fill { height: 100%; background: var(--gold); box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); border-radius: 3px; }
+
+        /* Controls */
+        label { display: block; font-size: 0.7rem; color: #555; margin-bottom: 8px; }
+        input[type=range] { width: 100%; accent-color: var(--gold); cursor: pointer; margin-bottom: 15px; }
+
+        /* Background 3D View */
+        #render-target { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        .metric-list { list-style: none; padding: 0; margin: 0; }
+        .metric-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <div id="render-target"></div>
+
+    <div class="dashboard">
+        <!-- LEFT: Performance & CRM -->
+        <div class="panel">
+            <div class="card">
+                <h2>Revenue vs. Quota</h2>
+                <div class="kpi-main">$1,248,000</div>
+                <div class="progress-track"><div class="progress-fill" style="width: 82%;"></div></div>
+                <div style="font-size: 0.8rem; color: #666;">82.5% of Monthly Target achieved</div>
+            </div>
+            
+            <div class="card">
+                <h2>Sales Pipeline</h2>
+                <div class="kpi-main">$4.82M</div>
+                <div class="kpi-sub">72 Active Opportunities</div>
+            </div>
+
+            <div class="card">
+                <h2>Interactive Controls</h2>
+                <label>Fabric Finish (Hue)</label>
+                <input type="range" id="hueInput" min="0" max="360" value="40">
+                <label>Rotation Control (Auto-Spin)</label>
+                <input type="range" id="spinInput" min="0" max="100" value="10">
+                <p style="font-size: 0.65rem; color: var(--gold); text-align: center; margin-top: 5px;">
+                    TIP: CLICK & DRAG CHAIR TO MANUALLY ROTATE
+                </p>
+            </div>
+        </div>
+
+        <!-- CENTER: Viewport Label -->
+        <div style="display:flex; flex-direction:column; justify-content:flex-end; align-items:center; padding-bottom:50px;">
+            <h1 style="letter-spacing:15px; margin:0; font-weight:200; font-size: 1.2rem; color: rgba(255,255,255,0.4);">CENTRAL CONTROL</h1>
+        </div>
+
+        <!-- RIGHT: Activities & Forecast -->
+        <div class="panel">
+            <div class="card">
+                <h2>Conversion Analytics</h2>
+                <canvas id="conversionChart" height="160"></canvas>
+            </div>
+
+            <div class="card">
+                <h2>Activity Metrics</h2>
+                <div class="metric-list">
+                    <div class="metric-item"><span>Client Calls</span> <span>1,104</span></div>
+                    <div class="metric-item"><span>Outbound Emails</span> <span>3,420</span></div>
+                    <div class="metric-item"><span>On-Site Demos</span> <span>84</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Forecasting</h2>
+                <div class="kpi-main">94.2%</div>
+                <div style="font-size: 0.8rem; color: #666;">Probability to hit Q2 targets</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 3D INTERACTIVE SCENE ---
+        let scene, camera, renderer, chair, controls;
+        let spinSpeed = 0.002;
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.5, 10);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('render-target').appendChild(renderer.domElement);
+
+            // OrbitControls for Manual Rotation
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.autoRotate = false; // We handle this manually below
+
+            // Professional Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 1);
+            sun.position.set(5, 10, 7);
+            scene.add(sun);
+
+            const loader = new THREE.GLTFLoader();
+            loader.load('https://threejs.org/examples/models/gltf/SheenChair.glb', (gltf) => {
+                chair = gltf.scene;
+                chair.scale.set(4.5, 4.5, 4.5);
+                chair.position.y = -2;
+                scene.add(chair);
+            });
+
+            animate();
+        }
+
+        // --- Interaction Logic ---
+        document.getElementById('hueInput').addEventListener('input', (e) => {
+            if (chair) {
+                chair.traverse((n) => {
+                    if (n.isMesh) n.material.color.setHSL(e.target.value / 360, 0.4, 0.5);
+                });
+            }
+        });
+
+        document.getElementById('spinInput').addEventListener('input', (e) => {
+            spinSpeed = e.target.value / 5000;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (chair) chair.rotation.y += spinSpeed;
+            controls.update(); // Necessary for smooth manual rotation
+            renderer.render(scene, camera);
+        }
+
+        // --- Charts ---
+        function initCharts() {
+            new Chart(document.getElementById('conversionChart'), {
+                type: 'line',
+                data: {
+                    labels: ['W1', 'W2', 'W3', 'W4'],
+                    datasets: [{
+                        data: [4.2, 3.8, 5.1, 4.9],
+                        borderColor: '#d4af37',
+                        backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                        fill: true, tension: 0.4
+                    }]
+                },
+                options: { 
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { display: false }, 
+                        x: { grid: { display: false }, ticks: { color: '#444' } } 
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init3D();
+        initCharts();
+    </script>
+</body>
+</html>
